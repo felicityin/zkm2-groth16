@@ -1,0 +1,27 @@
+[workspace]
+members = [
+    "fibonacci",
+]
+[package]
+name = "zkm2-groth16"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hex = "0.4.3"
+bincode = "1.3.3"
+ark-bn254 = { version = "0.4.0" }
+ark-serialize = { version = "0.4.2" }
+ark-ff = { version = "0.4.2" }
+ark-groth16 = { version = "0.4.0" }
+ark-ec = { version = "0.4.0" }
+lazy_static = { version = "1.5.0", default-features = false }
+
+# zkm2-build = { git = "https://github.com/zkMIPS/zkm2.git", branch = "dev/init" }
+zkm2-build = { path = "../zkm2/crates/build" }
+zkm2-core-machine = { path = "../zkm2/crates/core/machine" }
+zkm2-sdk = { path = "../zkm2/crates/sdk" }
+zkm2-verifier = { path = "../zkm2/crates/verifier", features = ["ark"] }
+
+[build-dependencies]
+zkm2-build = { path = "../zkm2/crates/build" }
