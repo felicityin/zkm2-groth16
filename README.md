@@ -1,3 +1,7 @@
+# Install
+
+Rust toolchain: https://github.com/zkMIPS/toolchain/releases
+
 # Test
 
 ```

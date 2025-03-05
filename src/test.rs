@@ -65,6 +65,9 @@ fn test_zkm2_verify_ark_groth16() {
     let proof = zkm2_proof_with_public_values.bytes();
     let public_inputs = zkm2_proof_with_public_values.public_values.to_vec();
 
+    println!("proof: {:?}\n", proof);
+    println!("public_inputs: {:?}\n", public_inputs);
+
     // This vkey hash was derived by calling `vk.bytes32()` on the verifying key.
     let vkey_hash = "0x0008f3156596bab55d59f3e5e93e5793f34e10aba7460dc91fe90d8e08b4cef8";
 
@@ -75,6 +78,8 @@ fn test_zkm2_verify_ark_groth16() {
         &decode_zkm2_vkey_hash(&vkey_hash).unwrap(),
         &hash_public_inputs(&public_inputs),
     );
+    println!("ark_proof: {:?}\n", ark_proof);
+    println!("ark_public_inputs: {:?}\n", ark_public_inputs);
 
     // verify proof
     let ok = Groth16::<Bn254, LibsnarkReduction>::verify_proof(&ark_vkey.into(), &ark_proof, &ark_public_inputs)
