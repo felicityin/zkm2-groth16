@@ -1,11 +1,12 @@
+use std::fs::File;
+use std::io::Read;
+
 use ark_bn254::Bn254;
 use ark_groth16::{r1cs_to_qap::LibsnarkReduction, Groth16};
 use lazy_static::lazy_static;
+use zkm2_prover::build::groth16_bn254_artifacts_dev_dir;
 use zkm2_sdk::{include_elf, utils, HashableKey, ProverClient, ZKMProofWithPublicValues, ZKMStdin};
-use zkm2_verifier::{
-    decode_zkm2_vkey_hash, hash_public_inputs, load_ark_groth16_verifying_key_from_bytes,
-    load_ark_proof_from_bytes, load_ark_public_inputs_from_bytes,
-};
+use zkm2_verifier::convert_ark;
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_elf!("fibonacci");
@@ -38,17 +39,34 @@ fn test_zkm2_groth16() {
     let public_values = proof.public_values.as_slice();
     println!("public values: 0x{}", hex::encode(public_values));
 
-    // Get the proof as bytes.
-    let solidity_proof = proof.bytes();
-    println!("proof: 0x{}", hex::encode(solidity_proof));
-
     // Verify proof and public values
     client.verify(&proof, &vk).expect("verification failed");
 
     // Save the proof.
     proof.save("fibonacci-groth16.bin").expect("saving proof failed");
 
-    // groth16 vk: ~/.zkm2/circuits/dev/groth16_vk.bin
+    let deserialized_proof =
+        ZKMProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
+
+    // Verify the deserialized proof.
+    client.verify(&deserialized_proof, &vk).expect("verification failed");
+
+    // Load the groth16 vk.
+    let mut groth16_vk_bytes = Vec::new();
+    let groth16_vk_path =
+        format!("{}/groth16_vk.bin", groth16_bn254_artifacts_dev_dir().to_str().unwrap());
+    File::open(groth16_vk_path).unwrap().read_to_end(&mut groth16_vk_bytes).unwrap();
+
+    // Convert the deserialized proof to an arkworks proof.
+    let ark_proof = convert_ark(&deserialized_proof, &vk.bytes32(), &groth16_vk_bytes).unwrap();
+
+    // Verify the arkworks proof.
+    let ok = Groth16::<Bn254, LibsnarkReduction>::verify_proof(
+        &ark_proof.groth16_vk,
+        &ark_proof.proof,
+        &ark_proof.public_inputs,
+    ).unwrap();
+    assert!(ok);
 
     println!("successfully generated and verified proof for the program!");
     println!("vk: {:?}", vk.bytes32());
@@ -71,18 +89,14 @@ fn test_zkm2_verify_ark_groth16() {
     // This vkey hash was derived by calling `vk.bytes32()` on the verifying key.
     let vkey_hash = "0x0008f3156596bab55d59f3e5e93e5793f34e10aba7460dc91fe90d8e08b4cef8";
 
-    // Convert gnark proof to arkworks proof
-    let ark_proof = load_ark_proof_from_bytes(&proof[4..]).unwrap();
-    let ark_vkey = load_ark_groth16_verifying_key_from_bytes(&GROTH16_VK_BYTES).unwrap();
-    let ark_public_inputs = load_ark_public_inputs_from_bytes(
-        &decode_zkm2_vkey_hash(&vkey_hash).unwrap(),
-        &hash_public_inputs(&public_inputs),
-    );
-    println!("ark_proof: {:?}\n", ark_proof);
-    println!("ark_public_inputs: {:?}\n", ark_public_inputs);
+    // Convert the gnark proof to an arkworks proof.
+    let ark_proof = convert_ark(&zkm2_proof_with_public_values, &vkey_hash, &GROTH16_VK_BYTES).unwrap();
 
-    // verify proof
-    let ok = Groth16::<Bn254, LibsnarkReduction>::verify_proof(&ark_vkey.into(), &ark_proof, &ark_public_inputs)
-    .unwrap();
+    // Verify the arkworks proof.
+    let ok = Groth16::<Bn254, LibsnarkReduction>::verify_proof(
+        &ark_proof.groth16_vk,
+        &ark_proof.proof,
+        &ark_proof.public_inputs,
+    ).unwrap();
     assert!(ok);
 }
